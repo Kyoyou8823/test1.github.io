@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>継続性：縦展開の力</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            position: relative;
+            height: 100%;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        .swiper {
+            width: 100%;
+            height: 100%;
+            max-width: 56rem; /* 896px */
+            max-height: 90vh;
+        }
+        .swiper-slide {
+            display: flex;
+            justify-content: center;
+            /* align-items: center; を削除して、コンテンツが見切れないようにする */
+            padding: 2rem;
+            box-sizing: border-box;
+            overflow-y: auto; /* コンテンツがはみ出す場合はスクロールを許可 */
+        }
+        .card-item {
+            transition: all 0.3s ease;
+        }
+        .card-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .icon {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+        }
+        .color-std { color: #3b82f6; border-color: #3b82f6; }
+        .color-mod { color: #22c55e; border-color: #22c55e; }
+        .color-auto { color: #f97316; border-color: #f97316; }
+        .color-circ { color: #8b5cf6; border-color: #8b5cf6; }
+        .color-integ { color: #ef4444; border-color: #ef4444; }
+        .color-adapt { color: #14b8a6; border-color: #14b8a6; }
+        
+        .swiper-button-next::after, .swiper-button-prev::after {
+            font-size: 2rem !important;
+            color: #0c4a6e;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="swiper">
+        <div class="swiper-wrapper">
+            <!-- Slide 1: Principles -->
+            <div class="swiper-slide">
+                <section id="continuity" class="w-full">
+                    <div class="text-center mb-8 md:mb-12">
+                        <h2 class="text-3xl md:text-4xl font-bold mb-2" style="color: #0c4a6e;">継続性：縦展開の力</h2>
+                        <p class="text-lg text-gray-600">持続可能な成果を生む「システム化」の原則</p>
+                    </div>
+                    <div class="p-6 md:p-10 rounded-2xl shadow-lg bg-white">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-std">
+                                <i class="fa-solid fa-ruler-combined icon"></i>
+                                <h3 class="font-bold text-lg mb-1">標準化</h3>
+                                <p class="text-sm">共通の型を定義し、品質と効率を安定させる</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-mod">
+                                <i class="fa-solid fa-puzzle-piece icon"></i>
+                                <h3 class="font-bold text-lg mb-1">モジュール化</h3>
+                                <p class="text-sm">部品を独立させ、改修・再利用を容易にする</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-auto">
+                                <i class="fa-solid fa-robot icon"></i>
+                                <h3 class="font-bold text-lg mb-1">自動化</h3>
+                                <p class="text-sm">人の手を介さずプロセスを実行する</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-circ">
+                                <i class="fa-solid fa-arrows-rotate icon"></i>
+                                <h3 class="font-bold text-lg mb-1">循環性</h3>
+                                <p class="text-sm">フィードバックを受け、自己改善する仕組み</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-integ">
+                                <i class="fa-solid fa-gears icon"></i>
+                                <h3 class="font-bold text-lg mb-1">統合性</h3>
+                                <p class="text-sm">各要素が連携し、全体として最適に機能する</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-adapt">
+                                <i class="fa-solid fa-leaf icon"></i>
+                                <h3 class="font-bold text-lg mb-1">適応性</h3>
+                                <p class="text-sm">環境変化に合わせて更新・進化できる</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Slide 2: Example -->
+            <div class="swiper-slide">
+                <section id="example" class="w-full">
+                    <div class="text-center mb-8 md:mb-12">
+                        <h2 class="text-3xl md:text-4xl font-bold mb-2" style="color: #0c4a6e;">具体例：大手コーヒーチェーンの運営</h2>
+                        <p class="text-lg text-gray-600">6つの原則がどう活かされているか</p>
+                    </div>
+                    <div class="p-6 md:p-10 rounded-2xl shadow-lg bg-white">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-std">
+                                <i class="fa-solid fa-book-open icon"></i>
+                                <h3 class="font-bold text-lg mb-1">標準化</h3>
+                                <p class="text-sm">レシピや接客をマニュアル化し、全店舗で同じ品質を提供</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-mod">
+                                <i class="fa-solid fa-cash-register icon"></i>
+                                <h3 class="font-bold text-lg mb-1">モジュール化</h3>
+                                <p class="text-sm">「レジ担当」「ドリンク作成」など役割を分け効率化</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-auto">
+                                <i class="fa-solid fa-wifi icon"></i>
+                                <h3 class="font-bold text-lg mb-1">自動化</h3>
+                                <p class="text-sm">POSレジで売上・在庫を自動集計し、発注を効率化</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-circ">
+                                <i class="fa-solid fa-star icon"></i>
+                                <h3 class="font-bold text-lg mb-1">循環性</h3>
+                                <p class="text-sm">アプリのレビューや売上データから、新商品を開発・改善</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-integ">
+                                <i class="fa-solid fa-truck-fast icon"></i>
+                                <h3 class="font-bold text-lg mb-1">統合性</h3>
+                                <p class="text-sm">販売データが本部の在庫管理や物流システムと連携</p>
+                            </div>
+                            <div class="card-item p-6 border-2 rounded-lg shadow color-adapt">
+                                <i class="fa-solid fa-mug-hot icon"></i>
+                                <h3 class="font-bold text-lg mb-1">適応性</h3>
+                                <p class="text-sm">季節限定メニューや新サービスを導入し、需要の変化に対応</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+        <!-- Add Arrows -->
+        <div class="swiper-button-next"></div>
+        <div class="swiper-button-prev"></div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script>
+        const swiper = new Swiper('.swiper', {
+            navigation: {
+                nextEl: '.swiper-button-next',
+                prevEl: '.swiper-button-prev',
+            },
+        });
+    </script>
+
+</body>
+</html>
+
