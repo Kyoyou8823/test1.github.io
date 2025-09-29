@@ -67,6 +67,18 @@
             background-color: rgba(0, 0, 0, 0.7);
             transition: opacity 0.2s ease-in-out;
         }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -163,7 +175,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, runTransaction, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, runTransaction, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
         // ここにFirebaseコンソールからコピーした設定情報を貼り付けました
@@ -309,35 +321,105 @@
             }
         }
         
-        // --- ゲーム初期化 ---
+        // --- ★★★ ゲーム初期化ロジックを全面的に修正 ★★★ ---
         async function initGame(gameId) {
-            activeGameId = gameId;
-            // GitHub Pagesで共有しやすいように、データベースのパスを簡潔なものに変更
-            const gameRef = doc(db, "karuta-games", activeGameId);
-            
-            if (gameId === myAppId) {
-                // 新しいゲームを始める場合、前のデータを削除
-                await deleteDoc(gameRef).catch(()=>{}); 
-            }
+            if (!db) { return; }
 
+            // 1. 先に画面を切り替えてローディングを表示
+            startScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            gameBoard.innerHTML = `
+                <div class="col-span-full flex flex-col justify-center items-center p-10 text-gray-500">
+                    <div class="loader mb-4"></div>
+                    <h2 class="text-xl font-semibold" id="loading-text">ゲームを探しています...</h2>
+                    <p class="text-sm">ゲームID: ${gameId}</p>
+                </div>`;
+
+            activeGameId = gameId;
+            const gameRef = doc(db, "karuta-games", activeGameId);
+            currentGameIdEl.textContent = activeGameId;
+
+            // 2. リアルタイムリスナーを設置。役目は「データがあれば描画する」だけ。
             unsubscribe = onSnapshot(gameRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentGameState = docSnap.data();
+                    renderBoard(currentGameState);
                 } else {
-                    // 最初のプレイヤーが部屋を作ったとき
-                    const initialCards = shuffleArray(elements.map(el => ({ id: el.num, ...el, owner: null, lockedBy: null })));
-                    currentGameState = { cards: initialCards };
-                    setDoc(gameRef, currentGameState);
+                    // ドキュメントが存在しない場合（まだ作成されていない、または削除された）
+                    // ローディング画面はそのまま表示を続ける
+                    console.log(`Listening for game [${gameId}], but it doesn't exist yet.`);
                 }
-                renderBoard(currentGameState);
             }, (error) => {
                 console.error("Snapshot listener error:", error);
-                gameBoard.innerHTML = `<div class="col-span-full text-red-500">ゲームデータの同期に失敗しました。</div>`;
+                if (error.code === 'permission-denied') {
+                    displayPermissionError();
+                } else if (error.message.includes('Cloud Firestore API')) {
+                    handleFirestoreApiError(error);
+                } else {
+                    gameBoard.innerHTML = `<div class="col-span-full text-red-500">ゲームデータの同期に失敗しました。 エラー: ${error.message}</div>`;
+                }
             });
-            
-            currentGameIdEl.textContent = activeGameId;
+
+            // 3. ゲーム作成者（自分のIDでゲームを始める人）だけが、ゲームの新規作成を試みる
+            if (gameId === myAppId) {
+                try {
+                    // まずドキュメントが存在するか一度だけ確認
+                    const docSnap = await getDoc(gameRef);
+                    if (!docSnap.exists()) {
+                        // 存在しない場合のみ、新しいゲームを作成する
+                        document.getElementById('loading-text').textContent = '新しいゲームを作成中...';
+                        const initialCards = shuffleArray(elements.map(el => ({ id: el.num, ...el, owner: null, lockedBy: null })));
+                        await setDoc(gameRef, { cards: initialCards });
+                        // これで上記のonSnapshotが発火し、自動的にrenderBoardが呼ばれる
+                    }
+                } catch (error) {
+                    console.error("Error during game creation check:", error);
+                    handleFirestoreApiError(error); // APIエラーなどをここで処理
+                }
+            }
+        }
+
+        // --- エラー表示用関数 ---
+        function handleFirestoreApiError(error) {
+             gameBoard.innerHTML = `
+                <div class="col-span-full bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg text-left" role="alert">
+                    <p class="font-bold text-lg">重要：データベースの有効化が必要です</p>
+                    <p class="mt-2">ゲームを開始できませんでした。これは、データベース機能（Cloud Firestore API）がまだ有効になっていないためです。</p>
+                    <p class="mt-4 font-semibold">解決する手順：</p>
+                    <ol class="list-decimal list-inside mt-2 space-y-2">
+                        <li><a href="https://console.developers.google.com/apis/api/firestore.googleapis.com/overview?project=${firebaseConfig.projectId}" target="_blank" class="text-blue-600 hover:underline font-semibold">ここをクリックして、APIを有効にするページを開きます。</a></li>
+                        <li>青い「有効にする」ボタンをクリックします。</li>
+                        <li>有効になるまで、1〜2分ほどお待ちください。</li>
+                        <li>このページに戻り、ページを再読み込みしてください。</li>
+                    </ol>
+                </div>`;
             startScreen.classList.add('hidden');
             gameScreen.classList.remove('hidden');
+        }
+
+        function displayPermissionError() {
+             gameBoard.innerHTML = `
+                <div class="col-span-full bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg text-left" role="alert">
+                    <p class="font-bold text-lg">重要：データベースのルール設定が必要です</p>
+                    <p class="mt-2">カード情報をデータベースから読み込めませんでした。これは、セキュリティルールが原因です。</p>
+                    <p class="mt-4 font-semibold">解決する手順：</p>
+                    <ol class="list-decimal list-inside mt-2 space-y-2">
+                        <li><a href="https://console.firebase.google.com/project/${firebaseConfig.projectId}/firestore/rules" target="_blank" class="text-blue-600 hover:underline font-semibold">ここをクリックして、Firestoreのルール設定ページを開きます。</a></li>
+                        <li>エディタの内容を、以下のテキストに<strong>完全に書き換えてください。</strong>（既存のルールは全て消してください）</li>
+                        <li class="list-none mt-2">
+                            <pre class="bg-gray-200 p-2 rounded text-sm text-black whitespace-pre-wrap"><code>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /karuta-games/{gameId} {
+      allow read, write: if true;
+    }
+  }
+}</code></pre>
+                        </li>
+                        <li class="mt-2">「公開」ボタンをクリックします。</li>
+                        <li>このページに戻り、ページを再読み込みしてください。</li>
+                    </ol>
+                </div>`;
         }
         
         // --- 画面描画 (簡素化) ---
@@ -381,18 +463,33 @@
         async function handleCardClick(cardId) {
             const gameRef = doc(db, "karuta-games", activeGameId);
             try {
-                await runTransaction(db, async (transaction) => {
+                const lockSuccessful = await runTransaction(db, async (transaction) => {
                     const gameDoc = await transaction.get(gameRef);
-                    if (!gameDoc.exists()) throw "Game document does not exist!";
+                    if (!gameDoc.exists()) {
+                        throw "Game document does not exist!";
+                    }
                     const cards = gameDoc.data().cards;
                     const cardIndex = cards.findIndex(c => c.id === cardId);
-                    if (cardIndex === -1 || cards[cardIndex].lockedBy || cards[cardIndex].owner) return;
+                    
+                    if (cardIndex === -1 || cards[cardIndex].lockedBy || cards[cardIndex].owner) {
+                        return false; 
+                    }
                     
                     cards[cardIndex].lockedBy = userId;
                     transaction.update(gameRef, { cards });
-                    showPopup(actionPopup);
+                    return true; 
                 });
-            } catch (error) { console.error("Transaction failed: ", error); }
+
+                if (lockSuccessful) {
+                    showPopup(actionPopup);
+                }
+
+            } catch (error) { 
+                console.error("Transaction failed: ", error); 
+                if (error.message.includes('Cloud Firestore API')) {
+                    handleFirestoreApiError(error);
+                }
+            }
         }
 
         correctBtn.onclick = () => handleAction('correct');
@@ -413,7 +510,12 @@
                     cards[cardIndex].lockedBy = null;
                     transaction.update(gameRef, { cards });
                 });
-            } catch (error) { console.error("Action transaction failed: ", error); }
+            } catch (error) { 
+                console.error("Action transaction failed: ", error); 
+                if (error.message.includes('Cloud Firestore API')) {
+                    handleFirestoreApiError(error);
+                }
+            }
         }
 
         async function returnCardToField(cardId) {
