@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>元素カルタ オンライン</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* カスタムスタイル */
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            touch-action: manipulation; /* ダブルタップによるズームを無効化 */
+        }
+        .karuta-card {
+            aspect-ratio: 91 / 55; /* 名刺の比率 */
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.5rem;
+            background-color: #2f4f4f; /* 画像読み込み中の背景色 */
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 0.5rem;
+        }
+        .karuta-card::before { /* 画像の上に暗いオーバーレイを敷いて文字を読みやすくする */
+            content: '';
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 40%, transparent 70%);
+            border-radius: 0.5rem;
+        }
+        .karuta-card > * {
+            position: relative; /* オーバーレイより手前に表示 */
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+        }
+        .karuta-card:not(.captured):hover {
+            transform: scale(1.05) rotate(2deg);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .card-locked {
+            filter: grayscale(80%) brightness(0.7);
+            cursor: not-allowed;
+            transform: none;
+        }
+        .card-locked::after {
+            content: 'LOCK';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        }
+        .captured {
+            visibility: hidden; /* 札を非表示にするが、スペースは維持する */
+        }
+        .popup-overlay, .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.7);
+            transition: opacity 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- ゲーム開始画面 -->
+    <div id="start-screen" class="container mx-auto max-w-md p-8 text-center h-screen flex flex-col justify-center">
+        <h1 class="text-4xl font-bold text-gray-700 mb-4">元素カルタ オンライン</h1>
+        <div id="start-screen-content" class="bg-white p-6 rounded-lg shadow-lg">
+            <p class="text-gray-600 mb-2">あなたのゲームID:</p>
+            <div class="relative">
+                <p id="my-game-id" class="font-mono bg-gray-200 text-gray-800 py-2 px-4 rounded mb-6 text-lg tracking-wider select-all"></p>
+                <button id="copy-id-btn" class="absolute top-0 right-2 text-gray-500 hover:text-blue-500" title="コピー">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                        <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zM-1 7a.5.5 0 0 1 .5-.5h1v-1a.5.5 0 0 1 1 0v1h1a.5.5 0 0 1 0 1h-1v1a.5.5 0 0 1-1 0v-1h-1a.5.5 0 0 1-.5-.5z"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-gray-600 mb-4">新しいゲームを始めるか、<br>対戦相手のIDを入力して参加してください。</p>
+            <input type="text" id="opponent-game-id" placeholder="対戦相手のゲームID" class="w-full p-3 border border-gray-300 rounded-lg mb-4 text-center">
+            <button id="start-game-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                ゲーム開始！
+            </button>
+        </div>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="game-screen" class="container mx-auto p-4 max-w-7xl hidden">
+        <header class="flex flex-wrap justify-between items-center mb-4 gap-2">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-700">元素カルタ</h1>
+                <p class="text-xs md:text-sm text-gray-500">ゲームID: <span id="current-game-id" class="font-mono bg-gray-200 px-1 rounded"></span></p>
+            </div>
+            <div>
+                <button id="captured-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                    獲得札
+                </button>
+                <button id="reset-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 ml-2">
+                    ゲーム終了
+                </button>
+            </div>
+        </header>
+        <main id="game-board" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
+        </main>
+    </div>
+
+    <!-- ===== ポップアップ & モーダル ===== -->
+    
+    <!-- 正解/お手付きポップアップ -->
+    <div id="action-popup" class="fixed inset-0 z-50 flex justify-center items-center popup-overlay hidden">
+        <div class="bg-white rounded-lg p-8 shadow-2xl text-center transform transition-all scale-95 opacity-0" id="action-popup-content">
+            <h2 class="text-2xl font-bold mb-6">どうする？</h2>
+            <div class="space-x-4">
+                <button id="correct-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-transform transform hover:scale-110">正解</button>
+                <button id="mistake-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-transform transform hover:scale-110">お手付き</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 獲得札モーダル -->
+    <div id="captured-modal" class="fixed inset-0 z-40 flex justify-center items-center modal-overlay p-4 hidden">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-full flex flex-col transform transition-all scale-95 opacity-0" id="captured-modal-content">
+            <header class="flex justify-between items-center p-4 border-b">
+                <h2 class="text-xl font-bold">獲得した札</h2>
+                <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800 text-3xl">&times;</button>
+            </header>
+            <div id="captured-cards-container" class="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- カードを場に戻す確認モーダル -->
+    <div id="return-card-modal" class="fixed inset-0 z-50 flex justify-center items-center popup-overlay hidden">
+         <div class="bg-white rounded-lg p-8 shadow-2xl text-center transform transition-all scale-95 opacity-0" id="return-card-modal-content">
+            <h2 class="text-2xl font-bold mb-6">この札を場に戻しますか？</h2>
+            <div class="space-x-4">
+                <button id="confirm-return-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-transform transform hover:scale-110">場に戻す</button>
+                <button id="cancel-return-btn" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-transform transform hover:scale-110">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ゲーム終了確認モーダル -->
+    <div id="confirm-reset-modal" class="fixed inset-0 z-50 flex justify-center items-center popup-overlay hidden">
+         <div class="bg-white rounded-lg p-8 shadow-2xl text-center transform transition-all scale-95 opacity-0" id="confirm-reset-modal-content">
+            <h2 class="text-2xl font-bold mb-6">ゲームを終了して<br>開始画面に戻りますか？</h2>
+            <div class="space-x-4">
+                <button id="confirm-reset-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-transform transform hover:scale-110">はい</button>
+                <button id="cancel-reset-btn" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-transform transform hover:scale-110">いいえ</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, runTransaction, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+        // GitHub Pagesなどで利用するために、ここにあなた自身のFirebase設定を貼り付けてください
+        // 1. Firebaseコンソール (https://console.firebase.google.com/) を開く
+        // 2. 新しいプロジェクトを作成する (無料プランでOK)
+        // 3. プロジェクトの設定 > 全般 > マイアプリ でウェブアプリ（</>）を登録する
+        // 4. 表示される const firebaseConfig = { ... }; の部分をまるごとコピーして、
+        //    以下の const firebaseConfig = { ... }; と置き換える
+        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+
+
+        // --- データ定義 (images-of-elements.com の安定したURLに完全移行) ---
+        const elements = [
+            { num: 1,  sym: 'H',  name: '水素',   imageUrl: 'https://images-of-elements.com/s/hydrogen.jpg' },
+            { num: 2,  sym: 'He', name: 'ヘリウム', imageUrl: 'https://images-of-elements.com/s/helium.jpg' },
+            { num: 3,  sym: 'Li', name: 'リチウム', imageUrl: 'https://images-of-elements.com/s/lithium.jpg' },
+            { num: 4,  sym: 'Be', name: 'ベリリウム', imageUrl: 'https://images-of-elements.com/s/beryllium.jpg' },
+            { num: 5,  sym: 'B',  name: 'ホウ素',   imageUrl: 'https://images-of-elements.com/s/boron.jpg' },
+            { num: 6,  sym: 'C',  name: '炭素',   imageUrl: 'https://images-of-elements.com/s/carbon.jpg' },
+            { num: 7,  sym: 'N',  name: '窒素',   imageUrl: 'https://images-of-elements.com/s/nitrogen.jpg' },
+            { num: 8,  sym: 'O',  name: '酸素',   imageUrl: 'https://images-of-elements.com/s/oxygen.jpg' },
+            { num: 9,  sym: 'F',  name: 'フッ素',   imageUrl: 'https://images-of-elements.com/s/fluorine.jpg' },
+            { num: 10, sym: 'Ne', name: 'ネオン',   imageUrl: 'https://images-of-elements.com/s/neon.jpg' },
+            { num: 11, sym: 'Na', name: 'ナトリウム', imageUrl: 'https://images-of-elements.com/s/sodium.jpg' },
+            { num: 12, sym: 'Mg', name: 'マグネシウム', imageUrl: 'https://images-of-elements.com/s/magnesium.jpg' },
+            { num: 13, sym: 'Al', name: 'アルミニウム', imageUrl: 'https://images-of-elements.com/s/aluminium.jpg' },
+            { num: 14, sym: 'Si', name: 'ケイ素',   imageUrl: 'https://images-of-elements.com/s/silicon.jpg' },
+            { num: 15, sym: 'P',  name: 'リン',   imageUrl: 'https://images-of-elements.com/s/phosphorus.jpg' },
+            { num: 16, sym: 'S',  name: '硫黄',   imageUrl: 'https://images-of-elements.com/s/sulfur.jpg' },
+            { num: 17, sym: 'Cl', name: '塩素',   imageUrl: 'https://images-of-elements.com/s/chlorine.jpg' },
+            { num: 18, sym: 'Ar', name: 'アルゴン',   imageUrl: 'https://images-of-elements.com/s/argon.jpg' },
+            { num: 19, sym: 'K',  name: 'カリウム',   imageUrl: 'https://images-of-elements.com/s/potassium.jpg' },
+            { num: 20, sym: 'Ca', name: 'カルシウム', imageUrl: 'https://images-of-elements.com/s/calcium.jpg' },
+            { num: 21, sym: 'Sc', name: 'スカンジウム', imageUrl: 'https://images-of-elements.com/s/scandium.jpg' },
+            { num: 22, sym: 'Ti', name: 'チタン',   imageUrl: 'https://images-of-elements.com/s/titanium.jpg' },
+            { num: 23, sym: 'V',  name: 'バナジウム', imageUrl: 'https://images-of-elements.com/s/vanadium.jpg' },
+            { num: 24, sym: 'Cr', name: 'クロム',   imageUrl: 'https://images-of-elements.com/s/chromium.jpg' },
+            { num: 25, sym: 'Mn', name: 'マンガン',   imageUrl: 'https://images-of-elements.com/s/manganese.jpg' },
+            { num: 26, sym: 'Fe', name: '鉄',       imageUrl: 'https://images-of-elements.com/s/iron.jpg' },
+            { num: 27, sym: 'Co', name: 'コバルト',   imageUrl: 'https://images-of-elements.com/s/cobalt.jpg' },
+            { num: 28, sym: 'Ni', name: 'ニッケル',   imageUrl: 'https://images-of-elements.com/s/nickel.jpg' },
+            { num: 29, sym: 'Cu', name: '銅',       imageUrl: 'https://images-of-elements.com/s/copper.jpg' },
+            { num: 30, sym: 'Zn', name: '亜鉛',     imageUrl: 'https://images-of-elements.com/s/zinc.jpg' }
+        ];
+
+        // --- DOM要素 ---
+        const startScreen = document.getElementById('start-screen');
+        const startScreenContent = document.getElementById('start-screen-content');
+        const gameScreen = document.getElementById('game-screen');
+        const myGameIdEl = document.getElementById('my-game-id');
+        const copyIdBtn = document.getElementById('copy-id-btn');
+        const opponentGameIdInput = document.getElementById('opponent-game-id');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const currentGameIdEl = document.getElementById('current-game-id');
+        const gameBoard = document.getElementById('game-board');
+        // モーダルとポップアップ
+        const actionPopup = document.getElementById('action-popup');
+        const correctBtn = document.getElementById('correct-btn');
+        const mistakeBtn = document.getElementById('mistake-btn');
+        const capturedModal = document.getElementById('captured-modal');
+        const capturedBtn = document.getElementById('captured-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const capturedCardsContainer = document.getElementById('captured-cards-container');
+        const resetBtn = document.getElementById('reset-btn');
+        const returnCardModal = document.getElementById('return-card-modal');
+        const confirmReturnBtn = document.getElementById('confirm-return-btn');
+        const cancelReturnBtn = document.getElementById('cancel-return-btn');
+        const confirmResetModal = document.getElementById('confirm-reset-modal');
+        const confirmResetBtn = document.getElementById('confirm-reset-btn');
+        const cancelResetBtn = document.getElementById('cancel-reset-btn');
+
+        // --- グローバル変数 ---
+        let db, auth, userId, myAppId;
+        let activeGameId = null;
+        let currentGameState = { cards: [] };
+        let unsubscribe;
+        let cardToReturnId = null; // 戻す対象のカードIDを保持
+
+        // --- Firebase 初期化 ---
+        async function initializeFirebase() {
+            // apiKeyがプレースホルダーのままかチェック
+            if (firebaseConfig.apiKey === "YOUR_API_KEY" || !firebaseConfig.apiKey) {
+                console.log("Firebase config is not set. Displaying setup instructions.");
+                startScreen.querySelector('h1').textContent = '初期設定が必要です';
+                startScreenContent.innerHTML = `
+                    <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 text-left rounded-lg" role="alert">
+                        <p class="font-bold">オンライン機能の設定を行ってください</p>
+                        <p class="mt-2">このゲームをGitHub Pagesなどで公開するには、あなた専用のデータベース設定（無料）が必要です。</p>
+                        <ol class="list-decimal list-inside mt-4 space-y-2 text-sm">
+                            <li><a href="https://console.firebase.google.com/" target="_blank" class="text-blue-600 hover:underline font-semibold">Firebaseコンソール</a>にアクセスし、新しいプロジェクトを作成します。</li>
+                            <li>プロジェクト内で、ウェブアプリ（<strong>&lt;/&gt;</strong>）を新規作成します。</li>
+                            <li>表示される <code>const firebaseConfig = { ... };</code> というコード全体をコピーします。</li>
+                            <li>このHTMLファイルの<code>&lt;script type="module"&gt;</code>タグ内にある<code>firebaseConfig</code>のプレースホルダー部分を、コピーしたコードに<strong>完全に置き換えてください。</strong></li>
+                        </ol>
+                        <p class="mt-4 text-xs">この作業は、あなた専用のオンライン対戦部屋を用意するようなものです。</p>
+                    </div>`;
+                return; // 設定されていない場合は、ここで処理を終了
+            }
+
+            try {
+                myAppId = `karuta-${Math.random().toString(36).substring(2, 10)}`;
+                
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                await signInAnonymously(auth);
+                userId = auth.currentUser?.uid;
+                myGameIdEl.textContent = myAppId;
+
+            } catch (error) {
+                 // Firebase設定が間違っている場合などの予期せぬエラーをキャッチ
+                console.error("An unexpected Firebase error occurred:", error);
+                startScreen.querySelector('h1').textContent = 'エラーが発生しました';
+                startScreenContent.innerHTML = `
+                    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 text-left rounded-lg" role="alert">
+                        <p class="font-bold">予期せぬエラー</p>
+                        <p>Firebaseの初期化中に問題が発生しました。HTMLに貼り付けたFirebaseの設定情報が正しいか確認してください。</p>
+                    </div>`;
+            }
+        }
+        
+        // --- ゲーム初期化 ---
+        async function initGame(gameId) {
+            activeGameId = gameId;
+            // GitHub Pagesで共有しやすいように、データベースのパスを簡潔なものに変更
+            const gameRef = doc(db, "karuta-games", activeGameId);
+            
+            if (gameId === myAppId) {
+                // 新しいゲームを始める場合、前のデータを削除
+                await deleteDoc(gameRef).catch(()=>{}); 
+            }
+
+            unsubscribe = onSnapshot(gameRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    currentGameState = docSnap.data();
+                } else {
+                    // 最初のプレイヤーが部屋を作ったとき
+                    const initialCards = shuffleArray(elements.map(el => ({ id: el.num, ...el, owner: null, lockedBy: null })));
+                    currentGameState = { cards: initialCards };
+                    setDoc(gameRef, currentGameState);
+                }
+                renderBoard(currentGameState);
+            }, (error) => {
+                console.error("Snapshot listener error:", error);
+                gameBoard.innerHTML = `<div class="col-span-full text-red-500">ゲームデータの同期に失敗しました。</div>`;
+            });
+            
+            currentGameIdEl.textContent = activeGameId;
+            startScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+        }
+        
+        // --- 画面描画 (簡素化) ---
+        function renderBoard(gameState) {
+            gameBoard.innerHTML = '';
+            if (!gameState || !gameState.cards) return;
+
+            gameState.cards.forEach(card => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'karuta-card';
+                cardEl.dataset.id = card.id;
+                cardEl.style.backgroundImage = `url(${card.imageUrl})`;
+
+                if (card.owner) cardEl.classList.add('captured');
+                if (card.lockedBy) cardEl.classList.add('card-locked');
+
+                cardEl.innerHTML = `
+                    <div class="text-left">
+                        <div class="font-bold text-xl">${card.sym}</div>
+                        <div class="text-sm opacity-80">${card.num}</div>
+                    </div>
+                    <div class="text-right font-semibold text-lg">${card.name}</div>
+                `;
+                
+                if (!card.lockedBy && !card.owner) {
+                    cardEl.addEventListener('click', () => handleCardClick(card.id));
+                }
+                gameBoard.appendChild(cardEl);
+            });
+            
+            const remainingCards = gameState.cards.filter(card => !card.owner);
+            if (remainingCards.length === 0 && gameState.cards.length > 0) {
+                 setTimeout(() => {
+                    alert('ゲーム終了！'); // シンプルな通知
+                    resetGame();
+                }, 1000);
+            }
+        }
+        
+        // --- イベントハンドラ ---
+        async function handleCardClick(cardId) {
+            const gameRef = doc(db, "karuta-games", activeGameId);
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const gameDoc = await transaction.get(gameRef);
+                    if (!gameDoc.exists()) throw "Game document does not exist!";
+                    const cards = gameDoc.data().cards;
+                    const cardIndex = cards.findIndex(c => c.id === cardId);
+                    if (cardIndex === -1 || cards[cardIndex].lockedBy || cards[cardIndex].owner) return;
+                    
+                    cards[cardIndex].lockedBy = userId;
+                    transaction.update(gameRef, { cards });
+                    showPopup(actionPopup);
+                });
+            } catch (error) { console.error("Transaction failed: ", error); }
+        }
+
+        correctBtn.onclick = () => handleAction('correct');
+        mistakeBtn.onclick = () => handleAction('mistake');
+
+        async function handleAction(action) {
+            hidePopup(actionPopup);
+            const gameRef = doc(db, "karuta-games", activeGameId);
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const gameDoc = await transaction.get(gameRef);
+                    if (!gameDoc.exists()) return;
+                    const cards = gameDoc.data().cards;
+                    const cardIndex = cards.findIndex(c => c.lockedBy === userId);
+                    if (cardIndex === -1) return;
+                    
+                    if (action === 'correct') cards[cardIndex].owner = userId;
+                    cards[cardIndex].lockedBy = null;
+                    transaction.update(gameRef, { cards });
+                });
+            } catch (error) { console.error("Action transaction failed: ", error); }
+        }
+
+        async function returnCardToField(cardId) {
+            const gameRef = doc(db, "karuta-games", activeGameId);
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const gameDoc = await transaction.get(gameRef);
+                    if (!gameDoc.exists()) return;
+                    const cards = gameDoc.data().cards;
+                    const cardIndex = cards.findIndex(c => c.id === cardId);
+                    if (cardIndex !== -1) {
+                        cards[cardIndex].owner = null;
+                        transaction.update(gameRef, { cards });
+                    }
+                });
+            } catch (error) { console.error("Return card transaction failed: ", error); }
+        }
+
+        function resetGame() {
+            if (unsubscribe) unsubscribe();
+            unsubscribe = null;
+            activeGameId = null;
+            gameScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+            opponentGameIdInput.value = '';
+        }
+
+        // --- モーダル・ポップアップ制御 (変更なし) ---
+        function showPopup(element) {
+            element.classList.remove('hidden');
+            setTimeout(() => {
+                element.querySelector('.transform').classList.remove('scale-95', 'opacity-0');
+            }, 10);
+        }
+
+        function hidePopup(element) {
+            element.querySelector('.transform').classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                element.classList.add('hidden');
+            }, 200);
+        }
+
+        // --- UIイベントリスナー ---
+        startGameBtn.addEventListener('click', () => {
+            const opponentId = opponentGameIdInput.value.trim();
+            const gameIdToJoin = opponentId || myAppId;
+            initGame(gameIdToJoin);
+        });
+
+        copyIdBtn.addEventListener('click', () => {
+            const textToCopy = myGameIdEl.textContent;
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            textArea.style.position = "fixed";
+            textArea.style.top = "-9999px";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    const originalContent = copyIdBtn.innerHTML;
+                    const originalTitle = copyIdBtn.title;
+                    copyIdBtn.innerHTML = 'OK!';
+                    copyIdBtn.title = 'コピーしました！';
+                    setTimeout(() => {
+                        copyIdBtn.innerHTML = originalContent;
+                        copyIdBtn.title = originalTitle;
+                    }, 2000);
+                } else {
+                    console.error('コピーに失敗しました。');
+                }
+            } catch (err) {
+                console.error('コピーに失敗', err);
+            }
+            document.body.removeChild(textArea);
+        });
+
+        resetBtn.addEventListener('click', () => showPopup(confirmResetModal));
+        confirmResetBtn.addEventListener('click', () => {
+            hidePopup(confirmResetModal);
+            resetGame();
+        });
+        cancelResetBtn.addEventListener('click', () => hidePopup(confirmResetModal));
+
+        capturedBtn.addEventListener('click', () => {
+            capturedCardsContainer.innerHTML = '';
+            const myCards = currentGameState.cards.filter(c => c.owner === userId);
+            if (myCards.length > 0) {
+                 myCards.sort((a, b) => a.num - b.num).forEach(card => {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = 'karuta-card';
+                    
+                    cardEl.style.backgroundImage = `url(${card.imageUrl})`;
+
+                    cardEl.innerHTML = `
+                        <div class="text-left"><div class="font-bold text-xl">${card.sym}</div><div class="text-sm opacity-80">${card.num}</div></div>
+                        <div class="text-right font-semibold text-lg">${card.name}</div>
+                    `;
+                    cardEl.addEventListener('click', () => {
+                        cardToReturnId = card.id;
+                        showPopup(returnCardModal);
+                    });
+                    capturedCardsContainer.appendChild(cardEl);
+                 });
+            } else {
+                capturedCardsContainer.innerHTML = `<p class="col-span-full text-center text-gray-500">まだ獲得した札はありません。</p>`;
+            }
+            showPopup(capturedModal);
+        });
+
+        closeModalBtn.addEventListener('click', () => hidePopup(capturedModal));
+
+        confirmReturnBtn.addEventListener('click', () => {
+            if(cardToReturnId) {
+                returnCardToField(cardToReturnId);
+                cardToReturnId = null;
+            }
+            hidePopup(returnCardModal);
+            hidePopup(capturedModal);
+        });
+        cancelReturnBtn.addEventListener('click', () => {
+            cardToReturnId = null;
+            hidePopup(returnCardModal);
+        });
+        
+        // --- ユーティリティ (変更なし) ---
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // --- メイン処理 ---
+        (async () => {
+            await initializeFirebase();
+        })();
+    </script>
+</body>
+</html>
+
